@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vitreous Turnbook Prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-skin="patina">
+    <div class="bio-backdrop" aria-hidden="true">
+      <div class="patina-map"></div>
+      <div class="moss-fur"></div>
+      <div class="tendril-field"></div>
+      <div class="spore-drift"></div>
+    </div>
+
+    <main class="hud-shell">
+      <header class="console-bar panel">
+        <div class="console-title">
+          <p class="panel-kicker">Living Device</p>
+          <h1 class="panel-title">Vitreous Turnbook</h1>
+          <p id="book-title" class="book-title">Her Lethal Secretions</p>
+        </div>
+
+        <div class="control-cluster">
+          <div class="knob-bank" aria-hidden="true">
+            <div class="knob"><span></span></div>
+            <div class="knob"><span></span></div>
+            <div class="knob"><span></span></div>
+          </div>
+
+          <button id="skin-cycle" class="console-button" type="button">Cycle Skin</button>
+
+          <div class="skin-switch" role="group" aria-label="UI skins">
+            <button class="skin-button is-active" data-skin="patina" type="button">Patina</button>
+            <button class="skin-button" data-skin="amber" type="button">Amber</button>
+            <button class="skin-button" data-skin="abyss" type="button">Abyss</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="hud-grid">
+        <section class="viewport-zone">
+          <div class="radial-rings" aria-hidden="true">
+            <span class="ring ring-outer"></span>
+            <span class="ring ring-mid"></span>
+            <span class="ring ring-inner"></span>
+          </div>
+
+          <section id="stage" class="viewport panel aura-authority">
+            <div class="scene-head">
+              <p id="turn-label" class="turn-label">Turn 1</p>
+              <p id="scene-aura" class="scene-aura">authority</p>
+            </div>
+
+            <div class="view-screen">
+              <img id="scene-image" class="scene-image" src="" alt="" />
+              <div class="screen-noise" aria-hidden="true"></div>
+              <h2 id="scene-title" class="scene-title"></h2>
+            </div>
+
+            <p id="scene-copy" class="scene-copy"></p>
+          </section>
+        </section>
+
+        <aside class="side-panel panel">
+          <section class="module module-books">
+            <p class="panel-kicker">Book Sequence</p>
+            <ol id="book-sequence" class="book-sequence"></ol>
+            <div id="next-book-offer" class="next-book-offer is-hidden">
+              <p class="offer-copy">Fatal resolution recorded. Next book available:</p>
+              <button id="next-book-button" class="console-button next-book-button" type="button"></button>
+            </div>
+          </section>
+
+          <section class="module module-choices">
+            <p class="panel-kicker">Decision Matrix</p>
+            <div id="choices" class="choices" aria-live="polite"></div>
+          </section>
+
+          <section class="module module-metrics">
+            <p class="panel-kicker">Metrics</p>
+
+            <div class="meter">
+              <div class="meter-head">
+                <span>Composure</span>
+                <span id="stat-composure">0</span>
+              </div>
+              <div class="meter-track"><span id="bar-composure"></span></div>
+            </div>
+
+            <div class="meter">
+              <div class="meter-head">
+                <span>Defiance</span>
+                <span id="stat-defiance">0</span>
+              </div>
+              <div class="meter-track"><span id="bar-defiance"></span></div>
+            </div>
+
+            <div class="meter">
+              <div class="meter-head">
+                <span>Kinship</span>
+                <span id="stat-kinship">0</span>
+              </div>
+              <div class="meter-track"><span id="bar-kinship"></span></div>
+            </div>
+          </section>
+
+          <section class="module module-history">
+            <p class="panel-kicker">Trace</p>
+            <ol id="history" class="history"></ol>
+          </section>
+        </aside>
+      </div>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
