@@ -2,6 +2,8 @@ const MAX_STAT = 10;
 const MIN_STAT = 0;
 const SKINS = ["patina", "amber", "abyss"];
 const AUTO_CYCLE_MS = 4500;
+const SCENE_SWITCH_MS = 190;
+const SCENE_SYNC_TIMEOUT_MS = 1200;
 const SKIN_THEME_VARS = {
   patina: {
     "--bg-0": "#071718",
@@ -788,6 +790,7 @@ const state = {
   skinAnimationFrame: null,
   currentBookIndex: initialBookIndex,
   completedBookIndices: new Set(),
+  isTransitioning: false,
   stats: { ...initialAdventure.initialStats },
   history: [initialAdventure.initialHistory],
   pendingLead: "",
@@ -820,6 +823,9 @@ const refs = {
   nextBookOffer: document.getElementById("next-book-offer"),
   nextBookButton: document.getElementById("next-book-button")
 };
+const imageLoadPromises = new Map();
+const sceneImagePromises = new Map();
+const sceneImageResolved = new Map();
 
 function clamp(value) {
   return Math.max(MIN_STAT, Math.min(MAX_STAT, value));
@@ -1021,7 +1027,94 @@ function getCurrentAdventure() {
   return ADVENTURES[currentBook?.id] || ADVENTURES.hallux;
 }
 
-function applySceneImage(sceneId, sceneTitle) {
+function withTimeout(promise, timeoutMs, fallback = null) {
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => resolve(fallback), timeoutMs);
+    promise
+      .then((value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch(() => {
+        clearTimeout(timeoutId);
+        resolve(fallback);
+      });
+  });
+}
+
+function preloadImage(src) {
+  if (!src) {
+    return Promise.resolve(false);
+  }
+  if (imageLoadPromises.has(src)) {
+    return imageLoadPromises.get(src);
+  }
+
+  const loadPromise = new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = src;
+  });
+  imageLoadPromises.set(src, loadPromise);
+  return loadPromise;
+}
+
+function getSceneAssetCandidates(sceneId) {
+  const assets = SCENE_IMAGE_BY_ID[sceneId];
+  if (!assets) {
+    return [];
+  }
+  const candidates = [];
+  if (assets.png) {
+    candidates.push(assets.png);
+  }
+  if (assets.svg) {
+    candidates.push(assets.svg);
+  }
+  return candidates;
+}
+
+function resolveSceneImageSource(sceneId) {
+  if (sceneImageResolved.has(sceneId)) {
+    return Promise.resolve(sceneImageResolved.get(sceneId));
+  }
+  if (sceneImagePromises.has(sceneId)) {
+    return sceneImagePromises.get(sceneId);
+  }
+
+  const resolvePromise = (async () => {
+    const candidates = getSceneAssetCandidates(sceneId);
+    for (const src of candidates) {
+      // Prefer the first successfully loaded candidate (png first, svg fallback).
+      // This makes scene swaps coherent once cached.
+      if (await preloadImage(src)) {
+        sceneImageResolved.set(sceneId, src);
+        return src;
+      }
+    }
+    sceneImageResolved.set(sceneId, null);
+    return null;
+  })();
+
+  sceneImagePromises.set(sceneId, resolvePromise);
+  return resolvePromise;
+}
+
+function primeSceneImage(sceneId) {
+  void resolveSceneImageSource(sceneId);
+}
+
+function primeChoiceSceneImages(scene) {
+  const choices = scene.dynamicChoices ? makeResolveChoices() : scene.choices || [];
+  choices.forEach((choice) => {
+    if (choice.to) {
+      primeSceneImage(choice.to);
+    }
+  });
+}
+
+function applySceneImage(sceneId, sceneTitle, prefetchedSrc = null) {
   const assets = SCENE_IMAGE_BY_ID[sceneId];
   if (!assets) {
     refs.sceneImage.removeAttribute("src");
@@ -1032,7 +1125,15 @@ function applySceneImage(sceneId, sceneTitle) {
 
   refs.sceneImage.alt = sceneTitle;
   refs.sceneImage.style.visibility = "visible";
-  if (assets.png && assets.svg) {
+  if (prefetchedSrc) {
+    refs.sceneImage.onerror = assets.svg
+      ? () => {
+          refs.sceneImage.onerror = null;
+          refs.sceneImage.src = assets.svg;
+        }
+      : null;
+    refs.sceneImage.src = prefetchedSrc;
+  } else if (assets.png && assets.svg) {
     refs.sceneImage.onerror = () => {
       refs.sceneImage.onerror = null;
       refs.sceneImage.src = assets.svg;
@@ -1353,32 +1454,42 @@ function renderChoices(scene) {
       </div>
     `;
     button.addEventListener("click", () => {
+      if (state.isTransitioning) {
+        return;
+      }
       const beforeScene = getCurrentScenes()[state.sceneId];
       applyStatDelta(choice.stats);
       state.turn += 1;
       state.sceneId = choice.to;
       state.pendingLead = choice.lead || "";
       pushHistory(`${beforeScene.title}: ${choice.note || choice.label}`);
-      transitionRender();
+      transitionRender(choice.to);
     });
     refs.choices.appendChild(button);
   });
 }
 
-function transitionRender() {
+async function transitionRender(targetSceneId) {
+  state.isTransitioning = true;
   refs.stage.classList.add("is-switching");
-  setTimeout(() => {
+  const minDelay = new Promise((resolve) => setTimeout(resolve, SCENE_SWITCH_MS));
+  const nextImagePromise = resolveSceneImageSource(targetSceneId);
+  const nextImageSrc = await withTimeout(nextImagePromise, SCENE_SYNC_TIMEOUT_MS, null);
+  await minDelay;
+  try {
     refs.stage.classList.remove("is-switching");
-    render();
-  }, 190);
+    render(nextImageSrc);
+  } finally {
+    state.isTransitioning = false;
+  }
 }
 
-function render() {
+function render(nextSceneImageSrc = null) {
   const scene = getCurrentScenes()[state.sceneId];
   refs.turnLabel.textContent = `Step ${state.turn}`;
   refs.aura.textContent = scene.aura;
   refs.title.textContent = scene.title;
-  applySceneImage(state.sceneId, scene.title);
+  applySceneImage(state.sceneId, scene.title, nextSceneImageSrc);
   refs.copy.textContent = state.pendingLead ? `${state.pendingLead} ${scene.copy}` : scene.copy;
 
   refs.stage.classList.remove("aura-authority", "aura-threshold", "aura-kin", "aura-ending");
@@ -1390,6 +1501,8 @@ function render() {
   renderHistory();
   renderBookSequence();
   renderNextBookOffer();
+  primeSceneImage(state.sceneId);
+  primeChoiceSceneImages(scene);
 }
 
 function resetGame() {
